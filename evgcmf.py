@@ -13,7 +13,7 @@ import pickle
 from numpy import shape
 
 # Routine to the evolve the GCMF at different Galactcocentric radii
-class EvGCMF:
+class EvGcmf:
     def __init__(self, **kwargs):
         r""" Evolve GCMF(R) """
         self._set_kwargs(**kwargs)
@@ -281,7 +281,8 @@ class EvGCMF:
         Mdot = Mdotref/Re
             
         if (self.past_evo):
-            Mdot*=sqrt(Re**0.8/3)
+            c = (Re>4)
+            Mdot[c]*=(Re[c]/4)**0.5
 
         M = numpy.logspace(log10(self.Mlo),log10(self.Mup),self.NM)
 
@@ -479,8 +480,8 @@ class EvGCMF:
             y, Mdotref, FeH = self.get_y_Mdotref(self.Rs)
 
         if (self.past_evo):
-            Re/=sqrt(Re**0.8/3)
-            #Re/=sqrt(0.25*Re)
+            c = (Re>=4)
+            Re[c]/=sqrt(Re/4)
 
         Mdot = Mdotref/Re
 
