@@ -30,14 +30,14 @@ class EvGcmf:
         self.age = 12e3 # [Myr]
         self.x = 2/3
         self.y = 4/3
-        self.Mdotref = 44.4 # [Msun/Myr]
+        self.Mdotref = 45 # [Msun/Myr]
         
         # Mass function
         self.Mlo = 1e2 # [Msun]
         self.Mup = 1e8 # [Msun]
         self.Mc = 8e5 # [Msun] Schechter mass
         self.Mref = 2e5 # [Msun]
-        self.Mlim = numpy.array([1e2, 1e4, 0.55e5]) # [Msun] Minimum masses for mass loss in field calc
+        self.Mlim = numpy.array([1e2, 1e4, 1e5]) # [Msun] Minimum masses for mass loss in field calc
 
         # Density
         self.gamma = 3.3
@@ -105,9 +105,14 @@ class EvGcmf:
         y = numpy.zeros_like(R) + 4./3
         Mdot = numpy.zeros_like(R) + self.Mdotref
 
-        Mdot[c] *= 2./3 + 1./3*((logR[c]+0.5)/1.5) 
-        y[c] = 2./3 + 2./3*((logR[c]+0.5)/1.5) 
-        
+        # Assume [Fe/H]=-0.5 at 0.3 kpc
+        #Mdot[c] *= 2./3 + 1./3*((logR[c]+0.5)/1.5) 
+        #y[c] = 2./3 + 2./3*((logR[c]+0.5)/1.5) 
+
+        # Assume [Fe/H]=-0.5 at 1 kpc
+        Mdot[c] *= 2/3 + 1/3*logR[c]
+        y[c] = 2/3 + 2/3*logR[c]
+
         return y, Mdot, feh
 
     # Evolve main function
@@ -479,15 +484,14 @@ class EvGcmf:
         if (self.feh_grad):
             y, Mdotref, FeH = self.get_y_Mdotref(self.Rs)
 
+        Mdot = Mdotref/Re
         if (self.past_evo):
             c = (Re>=4)
-            Re[c]/=sqrt(Re/4)
-
-        Mdot = Mdotref/Re
+            Mdot[c]*=sqrt(Re[c]/4)
 
 #        Mmin = min(self.Mref*(y*age*Mdot/self.Mref)**(1./self.x))
 
-        self.rhoh0s = 300*(Re/9.2)**-2
+        self.rhoh0s = 300*(Re/9.15)**-2
                 
         tdis = (1./y)*Mref/Mdot*(M0/Mref)**x
         D = self.age/tdis
