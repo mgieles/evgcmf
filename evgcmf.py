@@ -13,6 +13,7 @@ import pickle
 from numpy import shape
 
 # Routine to the evolve the GCMF at different Galactcocentric radii
+# Described in Gieles & Gnedin 2023, MNRAS (GG23)
 class EvGcmf:
     def __init__(self, **kwargs):
         r""" Evolve GCMF(R) """
@@ -24,7 +25,7 @@ class EvGcmf:
         
     # Functions
     def _set_kwargs(self, **kwargs):
-        # Default settings are for Model VII in Gieles & Gnedin
+        # Default settings are for Model (8) in GG23
         
         # Evolution
         self.age = 12e3 # [Myr]
@@ -39,6 +40,7 @@ class EvGcmf:
         self.Mref = 2e5 # [Msun]
         self.Mlim = numpy.array([1e2, 1e4, 1e5]) # [Msun] Minimum masses for mass loss in field calc
 
+        self.Mminobs = 1e3 # Minimum mass used for the analyses
         # Density
         self.gamma = 3.3
         self.delta = 0.5
@@ -65,7 +67,6 @@ class EvGcmf:
             for key, value in kwargs.items(): 
                 setattr(self, key, value)
 
-                
         self.Mdotref = abs(self.Mdotref) # ensure positive
                 
     def icmf(self,M,index):
@@ -104,10 +105,6 @@ class EvGcmf:
 
         y = numpy.zeros_like(R) + 4./3
         Mdot = numpy.zeros_like(R) + self.Mdotref
-
-        # Assume [Fe/H]=-0.5 at 0.3 kpc
-        #Mdot[c] *= 2./3 + 1./3*((logR[c]+0.5)/1.5) 
-        #y[c] = 2./3 + 2./3*((logR[c]+0.5)/1.5) 
 
         # Assume [Fe/H]=-0.5 at 1 kpc
         Mdot[c] *= 2/3 + 1/3*logR[c]
@@ -163,8 +160,6 @@ class EvGcmf:
             # Compute MF on grid
             M0g, Mg, dNdMg, Mdisg = self.get_dNdM_grid(Reg,R[i])
 
-            #print(" int F(Vr, Vt) = ",simps([simps(zz_vr, Vr) for zz_vr in rhoVg],Vt))
-            
             # Now integrate MF and mass loss
             for j in range(NM):
                 zz = rhoVg*dNdMg[:,:,j]
@@ -175,20 +170,18 @@ class EvGcmf:
                 Mdis[i][j] = simps([simps(zz_vr, Vr) for zz_vr in zz],Vt)
 
             # Get anisotropy of massive clusters
-            N5surv = 0
             rho = 0
             for j in range(NV):
                 for k in range(NV):
-                    c = (Mg[j,k,:]>1e5)
-                    N5 = simps(dNdMg[j,k,c],x=Mg[j,k,c])
-                    N5surv += N5
-                    mVr2[i] += rhoVg[j,k]*Vrg[j,k]**2*N5*dVr*dVt
-                    mVt2[i] += rhoVg[j,k]*Vtg[j,k]**2*N5*dVr*dVt
-                    rho += rhoVg[j,k]*dVr*dVt*N5
+                    c = (Mg[j,k,:]>=1e5)
+                    Nc = simps(dNdMg[j,k,c],x=Mg[j,k,c])
+
+                    mVr2[i] += rhoVg[j,k]*Vrg[j,k]**2*Nc*dVr*dVt
+                    mVt2[i] += rhoVg[j,k]*Vtg[j,k]**2*Nc*dVr*dVt
+                    rho += rhoVg[j,k]*Nc*dVr*dVt*Nc
             mVr2[i]/=rho
             mVt2[i]/=rho
-#            print(" Vr ",i,sqrt(mVr2[i]),sqrt(mVt2[i]),sigr, rho)
-        #    self.beta[i] = 1-mVt2[i]/(2*mVr2[i])
+
         self.beta = 1-mVt2/(2*mVr2)
         self.Vr2 = mVr2
         self.Vt2 = mVt2
@@ -378,10 +371,12 @@ class EvGcmf:
     def get_moments(self):
         mlogM = numpy.zeros(self.NR)
         slogM = numpy.zeros(self.NR)
-        X = log10(self.M)
+
+        c = (self.M >= self.Mminobs)
+        X = log10(self.M[c])
             
         for i in range(self.NR):
-            Y = self.M*self.dNdM[i]
+            Y = self.M[c]*self.dNdM[i][c]
             area = simps(Y,x=X)
             mlogM[i] = simps(X*Y,x=X)/area
             slogM[i] = sqrt(simps((X-mlogM[i])**2*Y,x=X)/area)
